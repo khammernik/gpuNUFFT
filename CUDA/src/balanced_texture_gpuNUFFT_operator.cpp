@@ -13,7 +13,7 @@ gpuNUFFT::BalancedTextureGpuNUFFTOperator::initAndCopyGpuNUFFTInfo(
     printf("copy GpuNUFFT Info to symbol memory... size = %lu \n",
       (SizeType)sizeof(gpuNUFFT::GpuNUFFTInfo));
 
-  initConstSymbol("GI", gi_host, sizeof(gpuNUFFT::GpuNUFFTInfo));
+  initConstSymbol("GI", gi_host, sizeof(gpuNUFFT::GpuNUFFTInfo), this->stream);
 
   if (DEBUG)
     printf("...done!\n");
@@ -31,7 +31,7 @@ void gpuNUFFT::BalancedTextureGpuNUFFTOperator::adjConvolution(
   // call balanced texture kernel
   performTextureConvolution(data_d, crds_d, gdata_d, kernel_d, sectors_d,
                             sector_processing_order_d, sector_centers_d,
-                            gi_host);
+                            gi_host, this->stream);
 
   unbindTexture("texDATA");
 }
@@ -47,7 +47,7 @@ void gpuNUFFT::BalancedTextureGpuNUFFTOperator::forwardConvolution(
   // call balanced texture kernel
   performTextureForwardConvolution(data_d, crds_d, gdata_d, kernel_d, sectors_d,
                                    sector_processing_order_d, sector_centers_d,
-                                   gi_host);
+                                   gi_host, this->stream);
 
   unbindTexture("texGDATA");
 }
@@ -64,11 +64,11 @@ void gpuNUFFT::BalancedTextureGpuNUFFTOperator::performGpuNUFFTAdj(
         this->sectorProcessingOrder.count());
   allocateAndCopyToDeviceMem<IndType2>(&sector_processing_order_d,
                                        this->sectorProcessingOrder.data,
-                                       this->sectorProcessingOrder.count());
+                                       this->sectorProcessingOrder.count(), this->stream);
 
   TextureGpuNUFFTOperator::performGpuNUFFTAdj(kspaceData, imgData, gpuNUFFTOut);
 
-  freeTotalDeviceMemory(sector_processing_order_d, NULL);  // NULL as stop token
+  freeTotalDeviceMemory(this->stream, sector_processing_order_d, NULL);  // NULL as stop token
 }
 
 void gpuNUFFT::BalancedTextureGpuNUFFTOperator::performGpuNUFFTAdj(
@@ -81,12 +81,12 @@ void gpuNUFFT::BalancedTextureGpuNUFFTOperator::performGpuNUFFTAdj(
         this->sectorProcessingOrder.count());
   allocateAndCopyToDeviceMem<IndType2>(&sector_processing_order_d,
                                        this->sectorProcessingOrder.data,
-                                       this->sectorProcessingOrder.count());
+                                       this->sectorProcessingOrder.count(), this->stream);
 
   TextureGpuNUFFTOperator::performGpuNUFFTAdj(kspaceData_gpu, imgData_gpu,
                                               gpuNUFFTOut);
 
-  freeTotalDeviceMemory(sector_processing_order_d, NULL);  // NULL as stop token
+  freeTotalDeviceMemory(this->stream, sector_processing_order_d, NULL);  // NULL as stop token
 }
 
 void gpuNUFFT::BalancedTextureGpuNUFFTOperator::performForwardGpuNUFFT(
@@ -99,12 +99,12 @@ void gpuNUFFT::BalancedTextureGpuNUFFTOperator::performForwardGpuNUFFT(
         this->sectorProcessingOrder.count());
   allocateAndCopyToDeviceMem<IndType2>(&sector_processing_order_d,
                                        this->sectorProcessingOrder.data,
-                                       this->sectorProcessingOrder.count());
+                                       this->sectorProcessingOrder.count(), this->stream);
 
   TextureGpuNUFFTOperator::performForwardGpuNUFFT(imgData, kspaceData,
                                                   gpuNUFFTOut);
 
-  freeTotalDeviceMemory(sector_processing_order_d, NULL);  // NULL as stop token
+  freeTotalDeviceMemory(this->stream, sector_processing_order_d, NULL);  // NULL as stop token
 }
 
 void gpuNUFFT::BalancedTextureGpuNUFFTOperator::performForwardGpuNUFFT(
@@ -117,10 +117,10 @@ void gpuNUFFT::BalancedTextureGpuNUFFTOperator::performForwardGpuNUFFT(
         this->sectorProcessingOrder.count());
   allocateAndCopyToDeviceMem<IndType2>(&sector_processing_order_d,
                                        this->sectorProcessingOrder.data,
-                                       this->sectorProcessingOrder.count());
+                                       this->sectorProcessingOrder.count(), this->stream);
 
   TextureGpuNUFFTOperator::performForwardGpuNUFFT(imgData, kspaceData,
                                                   gpuNUFFTOut);
 
-  freeTotalDeviceMemory(sector_processing_order_d, NULL);  // NULL as stop token
+  freeTotalDeviceMemory(this->stream, sector_processing_order_d, NULL);  // NULL as stop token
 }

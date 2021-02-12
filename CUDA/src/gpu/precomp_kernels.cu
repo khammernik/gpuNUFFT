@@ -44,7 +44,7 @@ __global__ void assignSectorsKernel(DType* kSpaceTraj,
   }
 }
 
-void assignSectorsGPU(gpuNUFFT::GpuNUFFTOperator* gpuNUFFTOp, gpuNUFFT::Array<DType>& kSpaceTraj, IndType* assignedSectors)
+void assignSectorsGPU(gpuNUFFT::GpuNUFFTOperator* gpuNUFFTOp, gpuNUFFT::Array<DType>& kSpaceTraj, IndType* assignedSectors, const cudaStream_t& stream)
 {
   IndType coordCnt = kSpaceTraj.count();
 
@@ -56,13 +56,13 @@ void assignSectorsGPU(gpuNUFFT::GpuNUFFTOperator* gpuNUFFTOp, gpuNUFFT::Array<DT
 
   if (DEBUG)
     printf("allocate and copy trajectory of size %d...\n",gpuNUFFTOp->getImageDimensionCount()*coordCnt);
-  allocateAndCopyToDeviceMem<DType>(&kSpaceTraj_d,kSpaceTraj.data,gpuNUFFTOp->getImageDimensionCount()*coordCnt);
+  allocateAndCopyToDeviceMem<DType>(&kSpaceTraj_d,kSpaceTraj.data,gpuNUFFTOp->getImageDimensionCount()*coordCnt, stream);
 
   if (DEBUG)
     printf("allocate and copy data of size %d...\n",coordCnt);
   allocateDeviceMem<IndType>(&assignedSectors_d,coordCnt);
 
-  assignSectorsKernel<<<grid_dim,block_dim>>>(kSpaceTraj_d,
+  assignSectorsKernel<<<grid_dim,block_dim,0,stream>>>(kSpaceTraj_d,
     assignedSectors_d,
     (long)coordCnt,
     gpuNUFFTOp->is2DProcessing(),
@@ -74,12 +74,12 @@ void assignSectorsGPU(gpuNUFFT::GpuNUFFTOperator* gpuNUFFTOp, gpuNUFFT::Array<DT
     printf("error: at assignSectors thread synchronization 1: %s\n",cudaGetErrorString(cudaGetLastError()));
 
   //get result from device 
-  copyFromDevice<IndType>(assignedSectors_d,assignedSectors,coordCnt);
+  copyFromDevice<IndType>(assignedSectors_d,assignedSectors,coordCnt, gpuNUFFTOp->getCudaStream());
 
   if (DEBUG && (cudaDeviceSynchronize() != cudaSuccess))
     printf("error: at assignSectors thread synchronization 2: %s\n",cudaGetErrorString(cudaGetLastError()));
 
-  freeTotalDeviceMemory(kSpaceTraj_d,assignedSectors_d,NULL);//NULL as stop
+  freeTotalDeviceMemory(gpuNUFFTOp->getCudaStream(), kSpaceTraj_d,assignedSectors_d,NULL);//NULL as stop
 }
 
 __global__ void sortArraysKernel(gpuNUFFT::IndPair* assignedSectorsAndIndicesSorted,
@@ -119,7 +119,8 @@ void sortArrays(gpuNUFFT::GpuNUFFTOperator* gpuNUFFTOp,
   gpuNUFFT::Array<DType>& kSpaceTraj,
   DType* trajSorted,
   DType* densCompData,
-  DType* densData)
+  DType* densData,
+  const cudaStream_t& stream)
 {
   IndType coordCnt = kSpaceTraj.count();
   dim3 block_dim(THREAD_BLOCK_SIZE);
@@ -134,25 +135,25 @@ void sortArrays(gpuNUFFT::GpuNUFFTOperator* gpuNUFFTOp,
   DType* densData_d = NULL;
 
   //Trajectory and sorted result 
-  allocateAndCopyToDeviceMem<DType>(&kSpaceTraj_d,kSpaceTraj.data,gpuNUFFTOp->getImageDimensionCount()*coordCnt);
+  allocateAndCopyToDeviceMem<DType>(&kSpaceTraj_d,kSpaceTraj.data,gpuNUFFTOp->getImageDimensionCount()*coordCnt, stream);
   allocateDeviceMem<DType>(&trajSorted_d,gpuNUFFTOp->getImageDimensionCount()*coordCnt);
 
   //Assigned sorted sectors and data indices and result
-  allocateAndCopyToDeviceMem<gpuNUFFT::IndPair>(&assignedSectorsAndIndicesSorted_d,&assignedSectorsAndIndicesSorted[0],coordCnt);
+  allocateAndCopyToDeviceMem<gpuNUFFT::IndPair>(&assignedSectorsAndIndicesSorted_d,&assignedSectorsAndIndicesSorted[0],coordCnt, stream);
   allocateDeviceMem<IndType>(&assignedSectors_d,coordCnt);	 
   allocateDeviceMem<IndType>(&dataIndices_d,coordCnt);	 
 
   //Density compensation data and sorted result
   if (densCompData != NULL)
   {
-    allocateAndCopyToDeviceMem<DType>(&densCompData_d,densCompData,coordCnt);
+    allocateAndCopyToDeviceMem<DType>(&densCompData_d,densCompData,coordCnt, stream);
     allocateDeviceMem<DType>(&densData_d,coordCnt);
   }
 
   if (DEBUG && (cudaDeviceSynchronize() != cudaSuccess))
     printf("error: at sortArrays thread synchronization 0: %s\n",cudaGetErrorString(cudaGetLastError()));
 
-  sortArraysKernel<<<grid_dim,block_dim>>>( assignedSectorsAndIndicesSorted_d,
+  sortArraysKernel<<<grid_dim,block_dim,0,stream>>>( assignedSectorsAndIndicesSorted_d,
     assignedSectors_d, 
     dataIndices_d,
     kSpaceTraj_d,
@@ -164,16 +165,16 @@ void sortArrays(gpuNUFFT::GpuNUFFTOperator* gpuNUFFTOp,
   if (DEBUG && (cudaDeviceSynchronize() != cudaSuccess))
     printf("error: at sortArrays thread synchronization 1: %s\n",cudaGetErrorString(cudaGetLastError()));
 
-  copyFromDevice<IndType>(assignedSectors_d,assignedSectors,coordCnt);
-  copyFromDevice<IndType>(dataIndices_d,dataIndices,coordCnt);
-  copyFromDevice<DType>(trajSorted_d,trajSorted,gpuNUFFTOp->getImageDimensionCount()*coordCnt);
+  copyFromDevice<IndType>(assignedSectors_d,assignedSectors,coordCnt, gpuNUFFTOp->getCudaStream());
+  copyFromDevice<IndType>(dataIndices_d,dataIndices,coordCnt, gpuNUFFTOp->getCudaStream());
+  copyFromDevice<DType>(trajSorted_d,trajSorted,gpuNUFFTOp->getImageDimensionCount()*coordCnt, gpuNUFFTOp->getCudaStream());
   if (densCompData != NULL)
-    copyFromDevice<DType>(densData_d,densData,coordCnt);
+    copyFromDevice<DType>(densData_d,densData,coordCnt, gpuNUFFTOp->getCudaStream());
 
   if (DEBUG && (cudaDeviceSynchronize() != cudaSuccess))
     printf("error: at sortArrays thread synchronization 2: %s\n",cudaGetErrorString(cudaGetLastError()));
 
-  freeTotalDeviceMemory(kSpaceTraj_d,assignedSectorsAndIndicesSorted_d,assignedSectors_d,dataIndices_d,trajSorted_d,densCompData_d,densData_d,NULL);//NULL as stop
+  freeTotalDeviceMemory(gpuNUFFTOp->getCudaStream(), kSpaceTraj_d,assignedSectorsAndIndicesSorted_d,assignedSectors_d,dataIndices_d,trajSorted_d,densCompData_d,densData_d,NULL);//NULL as stop
 }
 
 __global__ void selectOrderedGPUKernel(DType2* data, DType2* data_sorted, IndType* dataIndices, int N, int n_coils_cc)
@@ -193,12 +194,12 @@ __global__ void selectOrderedGPUKernel(DType2* data, DType2* data_sorted, IndTyp
   }
 }
 
-void selectOrderedGPU(DType2* data_d, IndType* data_indices_d, DType2* data_sorted_d,int N, int n_coils_cc)
+void selectOrderedGPU(DType2* data_d, IndType* data_indices_d, DType2* data_sorted_d,int N, int n_coils_cc, const cudaStream_t& stream)
 {
   dim3 block_dim(THREAD_BLOCK_SIZE);
   dim3 grid_dim(getOptimalGridDim(N,THREAD_BLOCK_SIZE)); 
 
-  selectOrderedGPUKernel<<<grid_dim,block_dim>>>(data_d,data_sorted_d,data_indices_d,N,n_coils_cc);
+  selectOrderedGPUKernel<<<grid_dim,block_dim,0,stream>>>(data_d,data_sorted_d,data_indices_d,N,n_coils_cc);
 
   if (DEBUG && (cudaDeviceSynchronize() != cudaSuccess))
     printf("error: at selectOrderedGPU thread synchronization 1: %s\n",cudaGetErrorString(cudaGetLastError()));
@@ -221,12 +222,12 @@ __global__ void writeOrderedGPUKernel(DType2* data_sorted, CufftType* data, IndT
   }
 }
 
-void writeOrderedGPU( DType2* data_sorted_d, IndType* data_indices_d,CufftType* data_d, int N, int n_coils_cc)
+void writeOrderedGPU( DType2* data_sorted_d, IndType* data_indices_d,CufftType* data_d, int N, int n_coils_cc, const cudaStream_t& stream)
 {
   dim3 block_dim(THREAD_BLOCK_SIZE);
   dim3 grid_dim(getOptimalGridDim(N,THREAD_BLOCK_SIZE)); 
   
-  writeOrderedGPUKernel<<<grid_dim,block_dim>>>(data_sorted_d,data_d,data_indices_d,N, n_coils_cc);
+  writeOrderedGPUKernel<<<grid_dim,block_dim,0,stream>>>(data_sorted_d,data_d,data_indices_d,N, n_coils_cc);
 
   if (DEBUG && (cudaDeviceSynchronize() != cudaSuccess))
     printf("error: at writeOrderedGPU thread synchronization 1: %s\n",cudaGetErrorString(cudaGetLastError()));

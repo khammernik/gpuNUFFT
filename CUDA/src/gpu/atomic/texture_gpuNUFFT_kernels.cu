@@ -386,7 +386,8 @@ __global__ void balancedTextureConvolutionKernel2D(
 void performTextureConvolution(DType2 *data_d, DType *crds_d,
                                CufftType *gdata_d, DType *kernel_d,
                                IndType *sectors_d, IndType *sector_centers_d,
-                               gpuNUFFT::GpuNUFFTInfo *gi_host)
+                               gpuNUFFT::GpuNUFFTInfo *gi_host,
+                               const cudaStream_t& stream)
 {
   long shared_mem_size =
       (gi_host->sector_dim) * sizeof(DType2) * gi_host->n_coils_cc;
@@ -405,12 +406,12 @@ void performTextureConvolution(DType2 *data_d, DType *crds_d,
     dim3 block_dim(
         64, 1,
         DEFAULT_VALUE(gi_host->n_coils_cc > 4 ? 4 : gi_host->n_coils_cc));
-    textureConvolutionKernel2D <<<grid_dim, block_dim, shared_mem_size>>>
+    textureConvolutionKernel2D <<<grid_dim, block_dim, shared_mem_size, stream>>>
         (data_d, crds_d, gdata_d, sectors_d, sector_centers_d,
          gi_host->sector_count);
   }
   else
-    textureConvolutionKernel <<<grid_dim, block_dim, shared_mem_size>>>
+    textureConvolutionKernel <<<grid_dim, block_dim, shared_mem_size, stream>>>
         (data_d, crds_d, gdata_d, sectors_d, sector_centers_d,
          gi_host->sector_count);
 
@@ -423,7 +424,9 @@ void performTextureConvolution(DType2 *data_d, DType *crds_d,
                                IndType *sectors_d,
                                IndType2 *sector_processing_order_d,
                                IndType *sector_centers_d,
-                               gpuNUFFT::GpuNUFFTInfo *gi_host)
+                               gpuNUFFT::GpuNUFFTInfo *gi_host,
+                               const cudaStream_t& stream
+                              )
 {
   long shared_mem_size =
       (gi_host->sector_dim) * sizeof(DType2) * gi_host->n_coils_cc;
@@ -445,12 +448,12 @@ void performTextureConvolution(DType2 *data_d, DType *crds_d,
         DEFAULT_VALUE(gi_host->n_coils_cc > 4 ? 4 : gi_host->n_coils_cc));
     //printf("block dims: %u %u %u!\n", block_dim.x, block_dim.y, block_dim.z);
     balancedTextureConvolutionKernel2D
-            <<<grid_dim, block_dim, shared_mem_size>>>
+            <<<grid_dim, block_dim, shared_mem_size, stream>>>
         (data_d, crds_d, gdata_d, sectors_d, sector_processing_order_d,
          sector_centers_d, gi_host->sectorsToProcess);
   }
   else
-    balancedTextureConvolutionKernel <<<grid_dim, block_dim, shared_mem_size>>>
+    balancedTextureConvolutionKernel <<<grid_dim, block_dim, shared_mem_size, stream>>>
         (data_d, crds_d, gdata_d, sectors_d, sector_processing_order_d,
          sector_centers_d, gi_host->sectorsToProcess);
 
@@ -1061,7 +1064,9 @@ void performTextureForwardConvolution(CufftType *data_d, DType *crds_d,
                                       CufftType *gdata_d, DType *kernel_d,
                                       IndType *sectors_d,
                                       IndType *sector_centers_d,
-                                      gpuNUFFT::GpuNUFFTInfo *gi_host)
+                                      gpuNUFFT::GpuNUFFTInfo *gi_host,
+                                      const cudaStream_t& stream
+                                     )
 {
   int thread_size = 192;
   long shared_mem_size = (thread_size + gi_host->sector_dim) *
@@ -1071,8 +1076,12 @@ void performTextureForwardConvolution(CufftType *data_d, DType *crds_d,
   dim3 grid_dim(getOptimalGridDim(gi_host->sector_count, thread_size));
 
   if (DEBUG)
+  {
     printf("texture forward convolution requires %ld bytes of shared memory!\n",
            shared_mem_size);
+    printf("Stream %p \n", stream);
+  }
+
   if (gi_host->is2Dprocessing)
   {
     // dim3 block_dim(thread_size, 1, DEFAULT_VALUE(gi_host->n_coils_cc > 4 ? 1
@@ -1080,12 +1089,12 @@ void performTextureForwardConvolution(CufftType *data_d, DType *crds_d,
     dim3 block_dim(thread_size, 1, 1);  // DEFAULT_VALUE(gi_host->n_coils_cc > 4
                                         // ? 1 : gi_host->n_coils_cc));
     textureForwardConvolutionKernel2D
-            <<<grid_dim, block_dim, shared_mem_size>>>
+            <<<grid_dim, block_dim, shared_mem_size, stream>>>
         (data_d, crds_d, gdata_d, sectors_d, sector_centers_d,
          gi_host->sector_count);
   }
   else
-    textureForwardConvolutionKernel <<<grid_dim, block_dim, shared_mem_size>>>
+    textureForwardConvolutionKernel <<<grid_dim, block_dim, shared_mem_size, stream>>>
         (data_d, crds_d, gdata_d, sectors_d, sector_centers_d,
          gi_host->sector_count);
 }
@@ -1095,7 +1104,9 @@ void performTextureForwardConvolution(CufftType *data_d, DType *crds_d,
                                       IndType *sectors_d,
                                       IndType2 *sector_processing_order_d,
                                       IndType *sector_centers_d,
-                                      gpuNUFFT::GpuNUFFTInfo *gi_host)
+                                      gpuNUFFT::GpuNUFFTInfo *gi_host,
+                                      const cudaStream_t& stream
+                                     )
 {
   int thread_size = THREAD_BLOCK_SIZE;
   long shared_mem_size = (thread_size + gi_host->sector_dim) *
@@ -1105,9 +1116,13 @@ void performTextureForwardConvolution(CufftType *data_d, DType *crds_d,
   dim3 grid_dim(getOptimalGridDim(gi_host->sector_count, thread_size));
 
   if (DEBUG)
+  {
     printf("balanced texture forward convolution requires %ld bytes of shared "
            "memory!\n",
            shared_mem_size);
+    printf("Stream %p \n", stream);
+  }
+  
   if (gi_host->is2Dprocessing)
   {
     bool useV2cached = false;
@@ -1133,7 +1148,7 @@ void performTextureForwardConvolution(CufftType *data_d, DType *crds_d,
         printf("grid dims: %u %u %u!\n", grid_dim.x, grid_dim.y, grid_dim.z);
       }
 
-      balancedTextureForwardConvolutionKernel32D<<<grid_dim, block_dim, shared_mem_size>>>
+      balancedTextureForwardConvolutionKernel32D<<<grid_dim, block_dim, shared_mem_size, stream>>>
         (data_d, crds_d, gdata_d, sectors_d, sector_processing_order_d, sector_centers_d, gi_host->sectorsToProcess);
     }
     else
@@ -1156,14 +1171,14 @@ void performTextureForwardConvolution(CufftType *data_d, DType *crds_d,
         printf("block dims: %u %u %u!\n", block_dim.x, block_dim.y, block_dim.z);
       }
 
-      balancedTextureForwardConvolutionKernel22D<<<grid_dim, block_dim, shared_mem_size>>>
+      balancedTextureForwardConvolutionKernel22D<<<grid_dim, block_dim, shared_mem_size, stream>>>
         (data_d, crds_d, gdata_d, sectors_d, sector_processing_order_d, sector_centers_d, gi_host->sectorsToProcess);
     }
   }
   else
   {
     balancedTextureForwardConvolutionKernel
-            <<<grid_dim, block_dim, shared_mem_size>>>
+            <<<grid_dim, block_dim, shared_mem_size, stream>>>
         (data_d, crds_d, gdata_d, sectors_d, sector_processing_order_d,
          sector_centers_d, gi_host->sectorsToProcess);
   }

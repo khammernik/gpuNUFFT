@@ -12,7 +12,7 @@ gpuNUFFT::BalancedGpuNUFFTOperator::initAndCopyGpuNUFFTInfo(int n_coils_cc)
     printf("copy GpuNUFFT Info to symbol memory... size = %lu \n",
            (SizeType)sizeof(gpuNUFFT::GpuNUFFTInfo));
 
-  initConstSymbol("GI", gi_host, sizeof(gpuNUFFT::GpuNUFFTInfo));
+  initConstSymbol("GI", gi_host, sizeof(gpuNUFFT::GpuNUFFTInfo), this->stream);
 
   if (DEBUG)
     printf("...done!\n");
@@ -25,7 +25,7 @@ void gpuNUFFT::BalancedGpuNUFFTOperator::adjConvolution(
     gpuNUFFT::GpuNUFFTInfo *gi_host)
 {
   performConvolution(data_d, crds_d, gdata_d, kernel_d, sectors_d,
-                     sector_processing_order_d, sector_centers_d, gi_host);
+                     sector_processing_order_d, sector_centers_d, gi_host, this->stream);
 }
 
 void gpuNUFFT::BalancedGpuNUFFTOperator::forwardConvolution(
@@ -35,7 +35,7 @@ void gpuNUFFT::BalancedGpuNUFFTOperator::forwardConvolution(
 {
   performForwardConvolution(data_d, crds_d, gdata_d, kernel_d, sectors_d,
                             sector_processing_order_d, sector_centers_d,
-                            gi_host);
+                            gi_host, this->stream);
 }
 
 // Adds behaviour of GpuNUFFTOperator by
@@ -50,11 +50,11 @@ void gpuNUFFT::BalancedGpuNUFFTOperator::performGpuNUFFTAdj(
         this->sectorProcessingOrder.count());
   allocateAndCopyToDeviceMem<IndType2>(&sector_processing_order_d,
                                        this->sectorProcessingOrder.data,
-                                       this->sectorProcessingOrder.count());
+                                       this->sectorProcessingOrder.count(), this->stream);
 
   GpuNUFFTOperator::performGpuNUFFTAdj(kspaceData, imgData, gpuNUFFTOut);
 
-  freeTotalDeviceMemory(sector_processing_order_d, NULL);  // NULL as stop token
+  freeTotalDeviceMemory(this->stream, sector_processing_order_d, NULL);  // NULL as stop token
 }
 
 void gpuNUFFT::BalancedGpuNUFFTOperator::performGpuNUFFTAdj(
@@ -67,11 +67,11 @@ void gpuNUFFT::BalancedGpuNUFFTOperator::performGpuNUFFTAdj(
         this->sectorProcessingOrder.count());
   allocateAndCopyToDeviceMem<IndType2>(&sector_processing_order_d,
                                        this->sectorProcessingOrder.data,
-                                       this->sectorProcessingOrder.count());
+                                       this->sectorProcessingOrder.count(), this->stream);
 
   GpuNUFFTOperator::performGpuNUFFTAdj(kspaceData, imgData, gpuNUFFTOut);
 
-  freeTotalDeviceMemory(sector_processing_order_d, NULL);  // NULL as stop token
+  freeTotalDeviceMemory(this->stream, sector_processing_order_d, NULL);  // NULL as stop token
 }
 
 void gpuNUFFT::BalancedGpuNUFFTOperator::performForwardGpuNUFFT(
@@ -84,11 +84,11 @@ void gpuNUFFT::BalancedGpuNUFFTOperator::performForwardGpuNUFFT(
         this->sectorProcessingOrder.count());
   allocateAndCopyToDeviceMem<IndType2>(&sector_processing_order_d,
                                        this->sectorProcessingOrder.data,
-                                       this->sectorProcessingOrder.count());
+                                       this->sectorProcessingOrder.count(), this->stream);
 
   GpuNUFFTOperator::performForwardGpuNUFFT(imgData, kspaceData, gpuNUFFTOut);
 
-  freeTotalDeviceMemory(sector_processing_order_d, NULL);  // NULL as stop token
+  freeTotalDeviceMemory(this->stream, sector_processing_order_d, NULL);  // NULL as stop token
 }
 
 void gpuNUFFT::BalancedGpuNUFFTOperator::performForwardGpuNUFFT(
@@ -101,10 +101,10 @@ void gpuNUFFT::BalancedGpuNUFFTOperator::performForwardGpuNUFFT(
         this->sectorProcessingOrder.count());
   allocateAndCopyToDeviceMem<IndType2>(&sector_processing_order_d,
                                        this->sectorProcessingOrder.data,
-                                       this->sectorProcessingOrder.count());
+                                       this->sectorProcessingOrder.count(), this->stream);
 
   GpuNUFFTOperator::performForwardGpuNUFFT(imgData, kspaceData, gpuNUFFTOut);
 
-  freeTotalDeviceMemory(sector_processing_order_d, NULL);  // NULL as stop token
+  freeTotalDeviceMemory(this->stream, sector_processing_order_d, NULL);  // NULL as stop token
 }
 

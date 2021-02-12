@@ -36,11 +36,13 @@
  *so on
  * @param sector_centers_d  precomputed coordinates (x,y,z) of sector centers
  * @param gi_host           info struct with meta information
+ * @param stream            cuda stream. Defaults to default stream (0x0)
  */
 void performConvolution(DType2 *data_d, DType *crds_d, CufftType *gdata_d,
                         DType *kernel_d, IndType *sectors_d,
                         IndType *sector_centers_d,
-                        gpuNUFFT::GpuNUFFTInfo *gi_host);
+                        gpuNUFFT::GpuNUFFTInfo *gi_host,
+                        const cudaStream_t& stream = 0x0);
 
 /**
  * \brief Adjoint gridding convolution implementation on GPU using sector load
@@ -73,12 +75,14 @@ void performConvolution(DType2 *data_d, DType *crds_d, CufftType *gdata_d,
  * @param sector_processing_order_d precomputed sector processing order
  * @param sector_centers_d  precomputed coordinates (x,y,z) of sector centers
  * @param gi_host           info struct with meta information
+ * @param stream            cuda stream. Defaults to default stream (0x0)
  */
 void performConvolution(DType2 *data_d, DType *crds_d, CufftType *gdata_d,
                         DType *kernel_d, IndType *sectors_d,
                         IndType2 *sector_processing_order_d,
                         IndType *sector_centers_d,
-                        gpuNUFFT::GpuNUFFTInfo *gi_host);
+                        gpuNUFFT::GpuNUFFTInfo *gi_host,
+                        const cudaStream_t& stream = 0x0);
 
 /**
  * \brief Adjoint gridding convolution implementation on GPU using textures for
@@ -110,11 +114,13 @@ void performConvolution(DType2 *data_d, DType *crds_d, CufftType *gdata_d,
  * @param sector_processing_order_d precomputed sector processing order
  * @param sector_centers_d  precomputed coordinates (x,y,z) of sector centers
  * @param gi_host           info struct with meta information
+ * @param stream            cuda stream. Defaults to default stream (0x0)
  */
 void performTextureConvolution(DType2 *data_d, DType *crds_d,
                                CufftType *gdata_d, DType *kernel_d,
                                IndType *sectors_d, IndType *sector_centers_d,
-                               gpuNUFFT::GpuNUFFTInfo *gi_host);
+                               gpuNUFFT::GpuNUFFTInfo *gi_host,
+                               const cudaStream_t& stream = 0x0);
 
 /**
  * \brief Adjoint gridding convolution implementation on GPU using textures and
@@ -146,13 +152,15 @@ void performTextureConvolution(DType2 *data_d, DType *crds_d,
  * @param sector_processing_order_d precomputed sector processing order
  * @param sector_centers_d  precomputed coordinates (x,y,z) of sector centers
  * @param gi_host           info struct with meta information
+ * @param stream            cuda stream. Defaults to default stream (0x0)
  */
 void performTextureConvolution(DType2 *data_d, DType *crds_d,
                                CufftType *gdata_d, DType *kernel_d,
                                IndType *sectors_d,
                                IndType2 *sector_processing_order_d,
                                IndType *sector_centers_d,
-                               gpuNUFFT::GpuNUFFTInfo *gi_host);
+                               gpuNUFFT::GpuNUFFTInfo *gi_host,
+                               const cudaStream_t& stream = 0x0);
 
 // FORWARD Operations
 
@@ -183,11 +191,13 @@ void performTextureConvolution(DType2 *data_d, DType *crds_d,
  * @param sector_processing_order_d precomputed sector processing order
  * @param sector_centers_d  precomputed coordinates (x,y,z) of sector centers
  * @param gi_host           info struct with meta information
+ * @param stream            cuda stream. Defaults to default stream (0x0)
  */
 void performForwardConvolution(CufftType *data_d, DType *crds_d,
                                CufftType *gdata_d, DType *kernel_d,
                                IndType *sectors_d, IndType *sector_centers_d,
-                               gpuNUFFT::GpuNUFFTInfo *gi_host);
+                               gpuNUFFT::GpuNUFFTInfo *gi_host,
+                               const cudaStream_t& stream = 0x0);
 
 /**
  * \brief Forward gridding convolution implementation on GPU using sector load
@@ -220,13 +230,15 @@ void performForwardConvolution(CufftType *data_d, DType *crds_d,
  * @param sector_processing_order_d precomputed sector processing order
  * @param sector_centers_d  precomputed coordinates (x,y,z) of sector centers
  * @param gi_host           info struct with meta information
+ * @param stream            cuda stream. Defaults to default stream (0x0)
  */
 void performForwardConvolution(CufftType *data_d, DType *crds_d,
                                CufftType *gdata_d, DType *kernel_d,
                                IndType *sectors_d,
                                IndType2 *sector_processing_order_d,
                                IndType *sector_centers_d,
-                               gpuNUFFT::GpuNUFFTInfo *gi_host);
+                               gpuNUFFT::GpuNUFFTInfo *gi_host,
+                               const cudaStream_t& stream = 0x0);
 
 /**
  * \brief Forward gridding convolution implementation on GPU using textures .
@@ -256,12 +268,14 @@ void performForwardConvolution(CufftType *data_d, DType *crds_d,
  *so on
  * @param sector_centers_d  precomputed coordinates (x,y,z) of sector centers
  * @param gi_host           info struct with meta information
+ * @param stream            cuda stream. Defaults to default stream (0x0)
  */
 void performTextureForwardConvolution(CufftType *data_d, DType *crds_d,
                                       CufftType *gdata_d, DType *kernel_d,
                                       IndType *sectors_d,
                                       IndType *sector_centers_d,
-                                      gpuNUFFT::GpuNUFFTInfo *gi_host);
+                                      gpuNUFFT::GpuNUFFTInfo *gi_host,
+                                      const cudaStream_t& stream = 0x0);
 
 /**
  * \brief Forward gridding convolution implementation on GPU using sector load
@@ -295,13 +309,15 @@ void performTextureForwardConvolution(CufftType *data_d, DType *crds_d,
  * @param sector_processing_order_d precomputed sector processing order
  * @param sector_centers_d  precomputed coordinates (x,y,z) of sector centers
  * @param gi_host           info struct with meta information
+ * @param stream            cuda stream. Defaults to default stream (0x0)
  */
 void performTextureForwardConvolution(CufftType *data_d, DType *crds_d,
                                       CufftType *gdata_d, DType *kernel_d,
                                       IndType *sectors_d,
                                       IndType2 *sector_processing_order_d,
                                       IndType *sector_centers_d,
-                                      gpuNUFFT::GpuNUFFTInfo *gi_host);
+                                      gpuNUFFT::GpuNUFFTInfo *gi_host,
+                                      const cudaStream_t& stream = 0x0);
 
 // UTIL Functions
 /** \brief Scale each element by the total number of elements.
@@ -310,8 +326,12 @@ void performTextureForwardConvolution(CufftType *data_d, DType *crds_d,
   * @param data FFT data
   * @param N    Problem size N
   * @param gi_host Info struct with meta information
+  * @param stream  cuda stream. Defaults to default stream (0x0)
   */
-void performFFTScaling(CufftType *data, int N, gpuNUFFT::GpuNUFFTInfo *gi_host);
+void performFFTScaling(CufftType *data,
+                       int N,
+                       gpuNUFFT::GpuNUFFTInfo *gi_host,
+                       const cudaStream_t& stream = 0x0);
 
 /** \brief Scale each element of the input data by the value of the density
   *compensation function for the corresponding sample point.
@@ -319,9 +339,11 @@ void performFFTScaling(CufftType *data, int N, gpuNUFFT::GpuNUFFTInfo *gi_host);
   * @param data kspace data
   * @param density_comp density compensation function
   * @param gi_host Info struct with meta information
+  * @param stream cuda stream. Defaults to default stream (0x0)
   */
 void performDensityCompensation(DType2 *data, DType *density_comp,
-                                gpuNUFFT::GpuNUFFTInfo *gi_host);
+                                gpuNUFFT::GpuNUFFTInfo *gi_host,
+                                const cudaStream_t& stream = 0x0);
 
 /** \brief Multiply each image element with the coil sensitivity
   *
@@ -330,18 +352,22 @@ void performDensityCompensation(DType2 *data, DType *density_comp,
   * @param gi_host Info struct with meta information
   * @param conjugate Flag whether to apply complex conjugate of sensitivity or
   *not
+  * @param stream  cuda stream. Defaults to default stream (0x0)
   */
 void performSensMul(CufftType *imdata_d, DType2 *sens_d,
-                    gpuNUFFT::GpuNUFFTInfo *gi_host, bool conjugate);
+                    gpuNUFFT::GpuNUFFTInfo *gi_host, bool conjugate,
+                    const cudaStream_t& stream = 0x0);
 
 /** \brief Perform a element-wise summation over multiple coil images
   *
   * @param imdata_d multi-coil image data
   * @param imdata_sum_d element-wise summated image
   * @param gi_host Info struct with meta information
+  * @param stream  cuda stream. Defaults to default stream (0x0)
   */
 void performSensSum(CufftType *imdata_d, CufftType *imdata_sum_d,
-                    gpuNUFFT::GpuNUFFTInfo *gi_host);
+                    gpuNUFFT::GpuNUFFTInfo *gi_host,
+                    const cudaStream_t& stream = 0x0);
 
 /** \brief FFT shift the grid data
   *
@@ -349,26 +375,33 @@ void performSensSum(CufftType *imdata_d, CufftType *imdata_sum_d,
   * @param shift_dir gpuNUFFT::FFTShiftDir FORWARD or INVERSE
   * @param gridDims Grid dimensions
   * @param gi_host Info struct with meta information
+  * @param stream  cuda stream. Defaults to default stream (0x0)
   */
 void performFFTShift(CufftType *gdata_d, gpuNUFFT::FFTShiftDir shift_dir,
                      gpuNUFFT::Dimensions gridDims,
-                     gpuNUFFT::GpuNUFFTInfo *gi_host);
+                     gpuNUFFT::GpuNUFFTInfo *gi_host,
+                     const cudaStream_t& stream = 0x0);
 
 /** \brief Crop the oversampled grid according to the oversampling factor
   *
   * @param gdata_d Ovesampled grid data
   * @param imdata_d Cropped image
   * @param gi_host Info struct with meta information
+  * @param stream  cuda stream. Defaults to default stream (0x0)
   */
 void performCrop(CufftType *gdata_d, CufftType *imdata_d,
-                 gpuNUFFT::GpuNUFFTInfo *gi_host);
+                 gpuNUFFT::GpuNUFFTInfo *gi_host,
+                 const cudaStream_t& stream = 0x0);
 
 /** \brief Apply the deapodization function to the image
   *
   * @param imdata_d Image data
   * @param gi_host Info struct with meta information
+  * @param stream  cuda stream. Defaults to default stream (0x0)
   */
-void performDeapodization(CufftType *imdata_d, gpuNUFFT::GpuNUFFTInfo *gi_host);
+void performDeapodization(CufftType *imdata_d,
+                          gpuNUFFT::GpuNUFFTInfo *gi_host, 
+                          const cudaStream_t& stream = 0x0);
 
 /** \brief Apply the deapodization function to the image using a precomputed
   *deapodization array
@@ -376,18 +409,22 @@ void performDeapodization(CufftType *imdata_d, gpuNUFFT::GpuNUFFTInfo *gi_host);
   * @param imdata_d Image data
   * @param deapo_d Precomputed deapodization
   * @param gi_host Info struct with meta information
+  * @param stream  cuda stream. Defaults to default stream (0x0)
   */
 void performDeapodization(CufftType *imdata_d, DType *deapo_d,
-                          gpuNUFFT::GpuNUFFTInfo *gi_host);
+                          gpuNUFFT::GpuNUFFTInfo *gi_host,
+                          const cudaStream_t& stream = 0x0);
 
 /** \brief Apply the deapodization function to the image in the forward
   *transformation
   *
   * @param imdata_d Image data
   * @param gi_host Info struct with meta information
+  * @param stream  cuda stream. Defaults to default stream (0x0)
   */
 void performForwardDeapodization(DType2 *imdata_d,
-                                 gpuNUFFT::GpuNUFFTInfo *gi_host);
+                                 gpuNUFFT::GpuNUFFTInfo *gi_host,
+                                 const cudaStream_t& stream = 0x0);
 
 /** \brief Apply the deapodization function to the image in the forward
   *transformation using a precomputed deapodization array
@@ -395,24 +432,31 @@ void performForwardDeapodization(DType2 *imdata_d,
   * @param imdata_d Image data
   * @param deapo_d Precomputed deapodization
   * @param gi_host Info struct with meta information
+  * @param stream  cuda stream. Defaults to default stream (0x0)
   */
 void performForwardDeapodization(DType2 *imdata_d, DType *deapo_d,
-                                 gpuNUFFT::GpuNUFFTInfo *gi_host);
+                                 gpuNUFFT::GpuNUFFTInfo *gi_host,
+                                 const cudaStream_t& stream = 0x0);
 
 /** \brief Perform the padding of the input image to the oversampled grid
   *
   * @param imdata_d Image data
   * @param gdata_d Oversampled grid containing the zero padded image
   * @param gi_host Info struct with meta information
+  * @param stream  cuda stream. Defaults to default stream (0x0)
   */
 void performPadding(DType2 *imdata_d, CufftType *gdata_d,
-                    gpuNUFFT::GpuNUFFTInfo *gi_host);
+                    gpuNUFFT::GpuNUFFTInfo *gi_host,
+                    const cudaStream_t& stream = 0x0);
 
 /** \brief Perform the precomputation of the deapodization function
   *
   * @param deapo_d Precomputed deapodization function
   * @param gi_host Info struct with meta information
+  * @param stream  cuda stream. Defaults to default stream (0x0)
   */
-void precomputeDeapodization(DType *deapo_d, gpuNUFFT::GpuNUFFTInfo *gi_host);
+void precomputeDeapodization(DType *deapo_d,
+                             gpuNUFFT::GpuNUFFTInfo *gi_host,
+                             const cudaStream_t& stream = 0x0);
 
 #endif

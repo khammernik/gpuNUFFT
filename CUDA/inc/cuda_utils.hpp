@@ -54,10 +54,10 @@ inline void freeDeviceMem(void *device_ptr)
  */
 template <typename TypeName>
 inline void copyToDevice(TypeName *host_ptr, TypeName *device_ptr,
-                         IndType num_elements)
+                         IndType num_elements, const cudaStream_t& stream = 0x0)
 {
-  HANDLE_ERROR(cudaMemcpy(device_ptr, host_ptr, num_elements * sizeof(TypeName),
-                          cudaMemcpyHostToDevice));
+  HANDLE_ERROR(cudaMemcpyAsync(device_ptr, host_ptr, num_elements * sizeof(TypeName),
+                          cudaMemcpyHostToDevice, stream));
 }
 
 /** \brief CUDA memory allocation and memcpy call to copy data from host to
@@ -69,10 +69,10 @@ inline void copyToDevice(TypeName *host_ptr, TypeName *device_ptr,
  */
 template <typename TypeName>
 inline void allocateAndCopyToDeviceMem(TypeName **device_ptr,
-                                       TypeName *host_ptr, IndType num_elements)
+                                       TypeName *host_ptr, IndType num_elements, const cudaStream_t& stream = 0x0)
 {
   allocateDeviceMem<TypeName>(device_ptr, num_elements);
-  copyToDevice<TypeName>(host_ptr, *device_ptr, num_elements);
+  copyToDevice<TypeName>(host_ptr, *device_ptr, num_elements, stream);
 }
 
 /** \brief CUDA memory allocation call and initialization with given scalar
@@ -82,13 +82,13 @@ inline void allocateAndCopyToDeviceMem(TypeName **device_ptr,
  * @param num_elements  amount of elements of size TypeName
  * @param value         Scalar value to initialize elements with
  */
-template <typename TypeName>
-inline void allocateAndSetMem(TypeName **device_ptr, IndType num_elements,
-                              int value)
-{
-  allocateDeviceMem<TypeName>(device_ptr, num_elements);
-  HANDLE_ERROR(cudaMemset(*device_ptr, value, num_elements * sizeof(TypeName)));
-}
+// template <typename TypeName>
+// inline void allocateAndSetMem(TypeName **device_ptr, IndType num_elements,
+//                               int value, const cudaStream_t& stream = 0x0)
+// {
+//   allocateDeviceMem<TypeName>(device_ptr, num_elements);
+//   HANDLE_ERROR(cudaMemsetAsync(*device_ptr, value, num_elements * sizeof(TypeName)), stream);
+// }
 
 /** \brief CUDA memcpy call to copy data from device ptr to device ptr
  *
@@ -98,11 +98,11 @@ inline void allocateAndSetMem(TypeName **device_ptr, IndType num_elements,
  */
 template <typename TypeName>
 inline void copyDeviceToDevice(TypeName *device_ptr_src,
-                               TypeName *device_ptr_dest, IndType num_elements)
+                               TypeName *device_ptr_dest, IndType num_elements, const cudaStream_t& stream = 0x0)
 {
-  HANDLE_ERROR(cudaMemcpy(device_ptr_dest, device_ptr_src,
+  HANDLE_ERROR(cudaMemcpyAsync(device_ptr_dest, device_ptr_src,
                           num_elements * sizeof(TypeName),
-                          cudaMemcpyDeviceToDevice));
+                          cudaMemcpyDeviceToDevice, stream));
 }
 
 /** \brief Copy CUDA memory from device to host
@@ -113,19 +113,19 @@ inline void copyDeviceToDevice(TypeName *device_ptr_src,
  */
 template <typename TypeName>
 inline void copyFromDevice(TypeName *device_ptr, TypeName *host_ptr,
-                           IndType num_elements)
+                           IndType num_elements, const cudaStream_t& stream = 0x0)
 {
-  HANDLE_ERROR(cudaMemcpy(host_ptr, device_ptr, num_elements * sizeof(TypeName),
-                          cudaMemcpyDeviceToHost));
+  HANDLE_ERROR(cudaMemcpyAsync(host_ptr, device_ptr, num_elements * sizeof(TypeName),
+                          cudaMemcpyDeviceToHost, stream));
 }
 
 /** \brief Free variable list of device pointers. Use NULL as stopping element
  *
- * e.g.: freeTotalDeviceMemory(ptr1*, ptr2*,NULL);
+ * e.g.: freeTotalDeviceMemory(stream, ptr1*, ptr2*,NULL);
  *
  * @param ptr Device pointer list
  */
-inline void freeTotalDeviceMemory(void *ptr, ...)
+inline void freeTotalDeviceMemory(const cudaStream_t& stream, void *ptr, ...)
 {
   va_list list;
   va_start(list, ptr);
@@ -140,7 +140,7 @@ inline void freeTotalDeviceMemory(void *ptr, ...)
     i++;
     p = va_arg(list, void *);
   }
-  cudaDeviceSynchronize();
+  cudaStreamSynchronize(stream);
   if (DEBUG)
     printf("%d device pointers freed\n", i);
 
@@ -212,7 +212,7 @@ inline void showMemoryInfo()
  *
  * @param symbol Const symbol name
  */
-void initConstSymbol(const char *symbol, const void *src, IndType count);
+void initConstSymbol(const char *symbol, const void *src, IndType count, const cudaStream_t& stream = 0x0);
 
 /** \brief Initialize texture memory on device
  *
@@ -221,7 +221,7 @@ void initConstSymbol(const char *symbol, const void *src, IndType count);
  * @param symbol Texture symbol name
  */
 void initTexture(const char *symbol, cudaArray **devicePtr,
-                 gpuNUFFT::Array<DType> hostTexture);
+                 gpuNUFFT::Array<DType> hostTexture, const cudaStream_t& stream = 0x0);
 
 /** \brief Bind to 1-d texture on device
  *

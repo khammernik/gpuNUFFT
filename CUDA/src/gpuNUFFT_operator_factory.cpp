@@ -137,7 +137,7 @@ gpuNUFFT::Array<IndType> gpuNUFFT::GpuNUFFTOperatorFactory::assignSectors(
 
   if (useGpu)
   {
-    assignSectorsGPU(gpuNUFFTOp, kSpaceTraj, assignedSectors.data);
+    assignSectorsGPU(gpuNUFFTOp, kSpaceTraj, assignedSectors.data, this->stream);
   }
   else
   {
@@ -327,13 +327,13 @@ gpuNUFFT::GpuNUFFTOperatorFactory::createNewGpuNUFFTOperator(
       debug("creating Balanced 2D TextureLookup Operator!\n");
       return new gpuNUFFT::BalancedTextureGpuNUFFTOperator(
           kernelWidth, sectorWidth, osf, imgDims, TEXTURE2D_LOOKUP,
-          this->matlabSharedMem);
+          this->matlabSharedMem, this->stream);
     }
     else
     {
       debug("creating Balanced GpuNUFFT Operator!\n");
       return new gpuNUFFT::BalancedGpuNUFFTOperator(kernelWidth, sectorWidth,
-        osf, imgDims, this->matlabSharedMem);
+        osf, imgDims, this->matlabSharedMem, this->stream);
     }
   }
 
@@ -341,13 +341,13 @@ gpuNUFFT::GpuNUFFTOperatorFactory::createNewGpuNUFFTOperator(
   {
     debug("creating 2D TextureLookup Operator!\n");
     return new gpuNUFFT::TextureGpuNUFFTOperator(kernelWidth, sectorWidth, osf,
-      imgDims, TEXTURE2D_LOOKUP, this->matlabSharedMem);
+      imgDims, TEXTURE2D_LOOKUP, this->matlabSharedMem, this->stream);
   }
   else
   {
     debug("creating DEFAULT GpuNUFFT Operator!\n");
     return new gpuNUFFT::GpuNUFFTOperator(kernelWidth, sectorWidth, osf,
-                                          imgDims, true, DEFAULT, true);
+                                          imgDims, true, DEFAULT, true, this->stream);
   }
 }
 
@@ -362,9 +362,9 @@ gpuNUFFT::Array<DType> gpuNUFFT::GpuNUFFTOperatorFactory::computeDeapodizationFu
   
   if (useTextures)
     deapoGpuNUFFTOp = new gpuNUFFT::TextureGpuNUFFTOperator(kernelWidth, sectorWidth, osf,
-    imgDims, TEXTURE2D_LOOKUP);
+    imgDims, TEXTURE2D_LOOKUP, false, this->stream);
   else
-    deapoGpuNUFFTOp = new gpuNUFFT::GpuNUFFTOperator(kernelWidth, sectorWidth, osf, imgDims);
+    deapoGpuNUFFTOp = new gpuNUFFT::GpuNUFFTOperator(kernelWidth, sectorWidth, osf, imgDims, true, DEFAULT, false, this->stream);
   
   // Data
   gpuNUFFT::Array<DType2> dataArray;
@@ -489,7 +489,8 @@ gpuNUFFT::GpuNUFFTOperatorFactory::createGpuNUFFTOperator(
   {
     sortArrays(gpuNUFFTOp, assignedSectorsAndIndicesSorted,
                assignedSectors.data, dataIndices.data, kSpaceTraj,
-               trajSorted.data, densCompData.data, densData.data);
+               trajSorted.data, densCompData.data, densData.data,
+               this->stream);
   }
   else
   {

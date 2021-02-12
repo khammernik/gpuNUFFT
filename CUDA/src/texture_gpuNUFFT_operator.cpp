@@ -56,7 +56,7 @@ gpuNUFFT::TextureGpuNUFFTOperator::initAndCopyGpuNUFFTInfo(int n_coils_cc)
     printf("copy GpuNUFFT Info to symbol memory... size = %lu \n",
       (SizeType)sizeof(gpuNUFFT::GpuNUFFTInfo));
 
-  initConstSymbol("GI", gi_host, sizeof(gpuNUFFT::GpuNUFFTInfo));
+  initConstSymbol("GI", gi_host, sizeof(gpuNUFFT::GpuNUFFTInfo), this->stream);
 
   if (DEBUG)
     printf("...done!\n");
@@ -72,7 +72,7 @@ void gpuNUFFT::TextureGpuNUFFTOperator::adjConvolution(
                   this->kSpaceTraj.count() * gi_host->n_coils_cc);
 
   performTextureConvolution(data_d, crds_d, gdata_d, kernel_d, sectors_d,
-                            sector_centers_d, gi_host);
+                            sector_centers_d, gi_host, this->stream);
 
   unbindTexture("texDATA");
 }
@@ -86,14 +86,14 @@ void gpuNUFFT::TextureGpuNUFFTOperator::forwardConvolution(
                   gi_host->grid_width_dim * gi_host->n_coils_cc);
 
   performTextureForwardConvolution(data_d, crds_d, gdata_d, kernel_d, sectors_d,
-                                   sector_centers_d, gi_host);
+                                   sector_centers_d, gi_host, this->stream);
 
   unbindTexture("texGDATA");
 }
 
 void gpuNUFFT::TextureGpuNUFFTOperator::initLookupTable()
 {
-  initTexture(getInterpolationTypeName(), &kernel_d, this->kernel);
+  initTexture(getInterpolationTypeName(), &kernel_d, this->kernel, this->stream);
 }
 
 void gpuNUFFT::TextureGpuNUFFTOperator::freeLookupTable()

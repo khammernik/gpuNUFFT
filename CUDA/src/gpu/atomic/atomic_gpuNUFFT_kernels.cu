@@ -748,7 +748,8 @@ void performConvolution( DType2* data_d,
   DType*			kernel_d, 
   IndType* sectors_d, 
   IndType* sector_centers_d,
-  gpuNUFFT::GpuNUFFTInfo* gi_host
+  gpuNUFFT::GpuNUFFTInfo* gi_host,
+  const cudaStream_t& stream
   )
 {
 #define CONVKERNEL2
@@ -758,9 +759,9 @@ void performConvolution( DType2* data_d,
   dim3 block_dim(THREAD_BLOCK_SIZE);
   dim3 grid_dim(getOptimalGridDim(gi_host->sector_count,THREAD_BLOCK_SIZE));
   if (gi_host->is2Dprocessing)
-    convolutionKernel2D<<<grid_dim,block_dim,shared_mem_size>>>(data_d,crds_d,gdata_d,sectors_d,sector_centers_d,gi_host->sector_count);
+    convolutionKernel2D<<<grid_dim,block_dim,shared_mem_size,stream>>>(data_d,crds_d,gdata_d,sectors_d,sector_centers_d,gi_host->sector_count);
   else
-    convolutionKernel<<<grid_dim,block_dim>>>(data_d,crds_d,gdata_d,sectors_d,sector_centers_d,gi_host->sector_count);
+    convolutionKernel<<<grid_dim,block_dim,0,stream>>>(data_d,crds_d,gdata_d,sectors_d,sector_centers_d,gi_host->sector_count);
 #else
 #ifdef CONVKERNEL2
   long shared_mem_size = (gi_host->sector_dim) * sizeof(DType2) * gi_host->n_coils_cc;
@@ -771,17 +772,16 @@ void performConvolution( DType2* data_d,
   if (DEBUG)
   {
     printf("adjoint convolution requires %ld bytes of shared memory!\n",shared_mem_size);
-    printf("grid dim %u, block dim %u \n",grid_dim.x, block_dim.x); 
+    printf("grid dim %u, block dim %u \n",grid_dim.x, block_dim.x);
+    printf("Stream %p \n", stream);
   }
   if (gi_host->is2Dprocessing)
   {
     dim3 block_dim(64, 1, DEFAULT_VALUE(gi_host->n_coils_cc > 4 ? 4 : gi_host->n_coils_cc));
-    convolutionKernel2D<<<grid_dim,block_dim,shared_mem_size>>>(data_d,crds_d,gdata_d,sectors_d,sector_centers_d,gi_host->sector_count);
+    convolutionKernel2D<<<grid_dim,block_dim,shared_mem_size,stream>>>(data_d,crds_d,gdata_d,sectors_d,sector_centers_d,gi_host->sector_count);
   }
   else
-  {
-    convolutionKernel2<<<grid_dim,block_dim,shared_mem_size>>>(data_d,crds_d,gdata_d,sectors_d,sector_centers_d,gi_host->sector_count);
-  }
+    convolutionKernel2<<<grid_dim,block_dim,shared_mem_size,stream>>>(data_d,crds_d,gdata_d,sectors_d,sector_centers_d,gi_host->sector_count);
 #else 
 #ifdef CONVKERNEL4
   // TODO tune param z dim
@@ -794,7 +794,8 @@ void performConvolution( DType2* data_d,
   if (DEBUG)
   {
     printf("adjoint convolution requires %ld bytes of shared memory!\n",shared_mem_size);
-    printf("grid dim (%u,%u,%u), block dim (%u,%u,%u) \n",grid_dim.x,grid_dim.y,grid_dim.z, block_dim.x,block_dim.y,block_dim.z); 
+    printf("grid dim (%u,%u,%u), block dim (%u,%u,%u) \n",grid_dim.x,grid_dim.y,grid_dim.z, block_dim.x,block_dim.y,block_dim.z);
+    printf("Stream %p \n", stream);
   }
   if (gi_host->is2Dprocessing)
   {
@@ -804,16 +805,16 @@ void performConvolution( DType2* data_d,
     dim3 block_dim(thread_size);
     dim3 grid_dim(getOptimalGridDim(gi_host->sector_count,1));
 
-    convolutionKernel2D<<<grid_dim,block_dim,shared_mem_size>>>(data_d,crds_d,gdata_d,sectors_d,sector_centers_d,gi_host->sector_count);
+    convolutionKernel2D<<<grid_dim,block_dim,shared_mem_size,stream>>>(data_d,crds_d,gdata_d,sectors_d,sector_centers_d,gi_host->sector_count);
   }
   else
-    convolutionKernel4<<<grid_dim,block_dim>>>(data_d,crds_d,gdata_d,sectors_d,sector_centers_d,gi_host->sector_count);
+    convolutionKernel4<<<grid_dim,block_dim,0,stream>>>(data_d,crds_d,gdata_d,sectors_d,sector_centers_d,gi_host->sector_count);
 #else
   long cache_size = 176;
   long shared_mem_size = (2*cache_size + 3*cache_size)*sizeof(DType);
   dim3 block_dim(gi_host->sector_pad_width,gi_host->sector_pad_width,4);
   dim3 grid_dim(gi_host->sector_count);
-  convolutionKernel3<<<grid_dim,block_dim,shared_mem_size>>>(data_d,crds_d,gdata_d,sectors_d,sector_centers_d,gi_host->sector_count,cache_size);
+  convolutionKernel3<<<grid_dim,block_dim,shared_mem_size,stream>>>(data_d,crds_d,gdata_d,sectors_d,sector_centers_d,gi_host->sector_count,cache_size);
 #endif
 #endif
 #endif
@@ -828,7 +829,8 @@ void performConvolution( DType2* data_d,
   IndType* sectors_d, 
   IndType2* sector_processing_order_d,
   IndType* sector_centers_d,
-  gpuNUFFT::GpuNUFFTInfo* gi_host
+  gpuNUFFT::GpuNUFFTInfo* gi_host,
+  const cudaStream_t& stream
   )
 {
   long shared_mem_size = (gi_host->sector_dim)*sizeof(DType2) * gi_host->n_coils_cc;
@@ -840,18 +842,19 @@ void performConvolution( DType2* data_d,
   {
     printf("adjoint convolution requires %ld bytes of shared memory!\n",shared_mem_size);
     printf("grid dim %u, block dim %u \n",grid_dim.x, block_dim.x); 
+    printf("Stream %p \n", stream);
   }
   if (gi_host->is2Dprocessing)
   {
     dim3 block_dim(64, 1, DEFAULT_VALUE(gi_host->n_coils_cc > 4 ? 4 : gi_host->n_coils_cc));
-    balancedConvolutionKernel2D<<<grid_dim,block_dim,shared_mem_size>>>(data_d,crds_d,gdata_d,sectors_d,sector_processing_order_d,sector_centers_d,gi_host->sectorsToProcess);
+    balancedConvolutionKernel2D<<<grid_dim,block_dim,shared_mem_size,stream>>>(data_d,crds_d,gdata_d,sectors_d,sector_processing_order_d,sector_centers_d,gi_host->sectorsToProcess);
   }
   else
   {
-    balancedConvolutionKernel2<<<grid_dim,block_dim,shared_mem_size>>>(data_d,crds_d,gdata_d,sectors_d,sector_processing_order_d,sector_centers_d,gi_host->sectorsToProcess);
+    balancedConvolutionKernel2<<<grid_dim,block_dim,shared_mem_size,stream>>>(data_d,crds_d,gdata_d,sectors_d,sector_processing_order_d,sector_centers_d,gi_host->sectorsToProcess);
     //dim3 block_dim(gi_host->sector_pad_width,gi_host->sector_pad_width,3);
     //dim3 grid_dim(getOptimalGridDim(gi_host->sector_count,block_dim.x*block_dim.y*block_dim.z));
-    //balancedConvolutionKernel4<<<grid_dim,block_dim>>>(data_d,crds_d,gdata_d,sectors_d,sector_processing_order_d,sector_centers_d,gi_host->sectorsToProcess);
+    //balancedConvolutionKernel4<<<grid_dim,block_dim,0,stream>>>(data_d,crds_d,gdata_d,sectors_d,sector_processing_order_d,sector_centers_d,gi_host->sectorsToProcess);
   }
   if (DEBUG)
     printf("...finished with: %s\n", cudaGetErrorString(cudaGetLastError()));
@@ -1441,7 +1444,8 @@ void performForwardConvolution( CufftType*		data_d,
   DType*			kernel_d, 
   IndType*		sectors_d, 
   IndType*		sector_centers_d,
-  gpuNUFFT::GpuNUFFTInfo*	gi_host
+  gpuNUFFT::GpuNUFFTInfo*	gi_host,
+  const cudaStream_t& stream
   )
 {
   // cached version proved to be
@@ -1457,14 +1461,18 @@ void performForwardConvolution( CufftType*		data_d,
     dim3 grid_dim(getOptimalGridDim(gi_host->sector_count,thread_size));
 
     if (DEBUG)
+    {
       printf("convolution requires %ld bytes of shared memory!\n",shared_mem_size);
+      printf("Stream %p \n", stream);
+    }
+      
     if (gi_host->is2Dprocessing)
     {
       dim3 block_dim(thread_size, 1, DEFAULT_VALUE(gi_host->n_coils_cc > 8 ? 8 : gi_host->n_coils_cc));
-      forwardConvolutionKernel2D<<<grid_dim,block_dim,shared_mem_size>>>(data_d,crds_d,gdata_d,sectors_d,sector_centers_d,gi_host->sector_count);
+      forwardConvolutionKernel2D<<<grid_dim,block_dim,shared_mem_size,stream>>>(data_d,crds_d,gdata_d,sectors_d,sector_centers_d,gi_host->sector_count);
     }
     else
-      forwardConvolutionKernel<<<grid_dim,block_dim,shared_mem_size>>>(data_d,crds_d,gdata_d,sectors_d,sector_centers_d,gi_host->sector_count);
+      forwardConvolutionKernel<<<grid_dim,block_dim,shared_mem_size,stream>>>(data_d,crds_d,gdata_d,sectors_d,sector_centers_d,gi_host->sector_count);
   }
   else
   {
@@ -1479,10 +1487,10 @@ void performForwardConvolution( CufftType*		data_d,
     if (gi_host->is2Dprocessing)
     {
       dim3 block_dim(thread_size, 1, DEFAULT_VALUE(gi_host->n_coils_cc > 4 ? 2 : gi_host->n_coils_cc));
-      forwardConvolutionKernel22D<<<grid_dim,block_dim,shared_mem_size>>>(data_d,crds_d,gdata_d,sectors_d,sector_centers_d,gi_host->sector_count);
+      forwardConvolutionKernel22D<<<grid_dim,block_dim,shared_mem_size,stream>>>(data_d,crds_d,gdata_d,sectors_d,sector_centers_d,gi_host->sector_count);
     }
     else
-      forwardConvolutionKernel2<<<grid_dim,block_dim,shared_mem_size>>>(data_d,crds_d,gdata_d,sectors_d,sector_centers_d,gi_host->sector_count);
+      forwardConvolutionKernel2<<<grid_dim,block_dim,shared_mem_size,stream>>>(data_d,crds_d,gdata_d,sectors_d,sector_centers_d,gi_host->sector_count);
   }
 }
 
@@ -1493,7 +1501,8 @@ void performForwardConvolution( CufftType*		data_d,
   IndType*		sectors_d,   
   IndType2* sector_processing_order_d,
   IndType*		sector_centers_d,
-  gpuNUFFT::GpuNUFFTInfo*	gi_host
+  gpuNUFFT::GpuNUFFTInfo*	gi_host,
+  const cudaStream_t& stream
   )
 {
   int thread_size =THREAD_BLOCK_SIZE;//empiric
@@ -1503,14 +1512,18 @@ void performForwardConvolution( CufftType*		data_d,
   dim3 grid_dim(getOptimalGridDim(gi_host->sector_count,thread_size));
 
   if (DEBUG)
+  {
     printf("balanced convolution requires %ld bytes of shared memory!\n",shared_mem_size);
+    printf("Stream %p \n", stream);
+  }
+    
   if (gi_host->is2Dprocessing)
     {
       dim3 block_dim(160, 1, DEFAULT_VALUE(gi_host->n_coils_cc > 4 ? 2 : gi_host->n_coils_cc));
-      balancedForwardConvolutionKernel22D<<<grid_dim,block_dim,shared_mem_size>>>(data_d,crds_d,gdata_d,sectors_d,sector_processing_order_d,sector_centers_d,gi_host->sectorsToProcess);
+      balancedForwardConvolutionKernel22D<<<grid_dim,block_dim,shared_mem_size,stream>>>(data_d,crds_d,gdata_d,sectors_d,sector_processing_order_d,sector_centers_d,gi_host->sectorsToProcess);
     }
   else
-    balancedForwardConvolutionKernel2<<<grid_dim,block_dim,shared_mem_size>>>(data_d,crds_d,gdata_d,sectors_d,sector_processing_order_d,sector_centers_d,gi_host->sectorsToProcess);
+    balancedForwardConvolutionKernel2<<<grid_dim,block_dim,shared_mem_size,stream>>>(data_d,crds_d,gdata_d,sectors_d,sector_processing_order_d,sector_centers_d,gi_host->sectorsToProcess);
 }
 
 #endif

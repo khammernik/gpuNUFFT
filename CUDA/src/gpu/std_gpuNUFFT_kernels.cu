@@ -12,13 +12,13 @@
 // to work properly
 //
 //
-void initConstSymbol(const char* symbol, const void* src, IndType size)
+void initConstSymbol(const char* symbol, const void* src, IndType size, const cudaStream_t& stream)
 {
   if (std::string("GI").compare(symbol)==0)
-    HANDLE_ERROR(cudaMemcpyToSymbol(GI, src,size));
+    HANDLE_ERROR(cudaMemcpyToSymbolAsync(GI, src, size, 0, cudaMemcpyHostToDevice, stream));
 
   if (std::string("KERNEL").compare(symbol)==0)
-    HANDLE_ERROR(cudaMemcpyToSymbol(KERNEL, src,size));
+    HANDLE_ERROR(cudaMemcpyToSymbolAsync(KERNEL, src, size, 0, cudaMemcpyHostToDevice, stream));
 }
 
 void bindTo1DTexture(const char* symbol, void* devicePtr, IndType count)
@@ -34,13 +34,13 @@ void bindTo1DTexture(const char* symbol, void* devicePtr, IndType count)
 }
 
 
-void initTexture(const char* symbol, cudaArray** devicePtr, gpuNUFFT::Array<DType> hostTexture)
+void initTexture(const char* symbol, cudaArray** devicePtr, gpuNUFFT::Array<DType> hostTexture, const cudaStream_t& stream)
 {
   if (std::string("texKERNEL").compare(symbol)==0)
   {
     HANDLE_ERROR(cudaMallocArray (devicePtr, &texKERNEL.channelDesc, hostTexture.dim.width, 1));
     HANDLE_ERROR(cudaBindTextureToArray(texKERNEL, *devicePtr));
-    HANDLE_ERROR(cudaMemcpyToArray(*devicePtr, 0, 0, hostTexture.data, sizeof(float)*hostTexture.count(), cudaMemcpyHostToDevice));
+    HANDLE_ERROR(cudaMemcpyToArrayAsync(*devicePtr, 0, 0, hostTexture.data, sizeof(float)*hostTexture.count(), cudaMemcpyHostToDevice, stream));
     
     texKERNEL.filterMode = cudaFilterModePoint;
     texKERNEL.normalized = true;
@@ -51,7 +51,7 @@ void initTexture(const char* symbol, cudaArray** devicePtr, gpuNUFFT::Array<DTyp
     HANDLE_ERROR(cudaMallocArray (devicePtr, &texKERNEL2D.channelDesc, hostTexture.dim.width, hostTexture.dim.height));
 
     HANDLE_ERROR(cudaBindTextureToArray(texKERNEL2D, *devicePtr));
-    HANDLE_ERROR(cudaMemcpyToArray(*devicePtr, 0, 0, hostTexture.data, sizeof(float)*hostTexture.count(), cudaMemcpyHostToDevice));
+    HANDLE_ERROR(cudaMemcpyToArrayAsync(*devicePtr, 0, 0, hostTexture.data, sizeof(float)*hostTexture.count(), cudaMemcpyHostToDevice, stream));
     
     texKERNEL2D.filterMode = cudaFilterModeLinear;
     texKERNEL2D.normalized = true;
@@ -69,7 +69,7 @@ void initTexture(const char* symbol, cudaArray** devicePtr, gpuNUFFT::Array<DTyp
     copyparams.kind=cudaMemcpyHostToDevice; 
     copyparams.srcPtr= make_cudaPitchedPtr((void*)hostTexture.data,sizeof(float)*hostTexture.dim.width,hostTexture.dim.height,hostTexture.dim.depth); 
 
-    HANDLE_ERROR(cudaMemcpy3D(&copyparams)); 
+    HANDLE_ERROR(cudaMemcpy3DAsync(&copyparams, stream)); 
     HANDLE_ERROR(cudaBindTextureToArray(texKERNEL3D, *devicePtr));
   
     texKERNEL3D.filterMode = cudaFilterModeLinear;
@@ -129,14 +129,17 @@ __global__ void fftScaleKernel(CufftType* data, DType scaling, int N)
   }
 }
 
-void performFFTScaling(CufftType* data,int N, gpuNUFFT::GpuNUFFTInfo* gi_host)
+void performFFTScaling(CufftType* data,int N, gpuNUFFT::GpuNUFFTInfo* gi_host, const cudaStream_t& stream)
 {
   dim3 block_dim(64, 1, 8);
   //dim3 block_dim(THREAD_BLOCK_SIZE);
   dim3 grid_dim(getOptimalGridDim(N,THREAD_BLOCK_SIZE));
   DType scaling_factor = (DType)1.0 / (DType) sqrt((DType)gi_host->gridDims_count);
 
-  fftScaleKernel<<<grid_dim,block_dim>>>(data,scaling_factor,N);
+  fftScaleKernel<<<grid_dim,block_dim,0,stream>>>(data,scaling_factor,N);
+
+  if (DEBUG)
+    printf("Perform FFT scaling (stream=%p) \n", stream);
 }
 
 __global__ void sensMulKernel(CufftType* imdata, DType2* sens, int N)
@@ -174,18 +177,19 @@ __global__ void conjSensMulKernel(CufftType* imdata, DType2* sens, int N)
 void performSensMul(CufftType* imdata_d,
   DType2* sens_d,
   gpuNUFFT::GpuNUFFTInfo* gi_host,
-  bool conjugate)
+  bool conjugate,
+  const cudaStream_t& stream)
 {
   if (DEBUG)
-    printf("perform sensitivity multiplication \n");
+    printf("perform sensitivity multiplication (stream=%p) \n", stream);
 
   dim3 grid_dim(getOptimalGridDim(gi_host->im_width_dim,THREAD_BLOCK_SIZE));
   //dim3 block_dim(THREAD_BLOCK_SIZE);
   dim3 block_dim(64, 1, 8);
   if (conjugate)
-    conjSensMulKernel<<<grid_dim,block_dim>>>(imdata_d,sens_d,gi_host->im_width_dim);
+    conjSensMulKernel<<<grid_dim,block_dim,0,stream>>>(imdata_d,sens_d,gi_host->im_width_dim);
   else
-    sensMulKernel<<<grid_dim,block_dim>>>(imdata_d,sens_d,gi_host->im_width_dim);
+    sensMulKernel<<<grid_dim,block_dim,0,stream>>>(imdata_d,sens_d,gi_host->im_width_dim);
 }
 
 __global__ void sensSumKernel(CufftType* imdata, DType2* imdata_sum, int N)
@@ -206,15 +210,16 @@ __global__ void sensSumKernel(CufftType* imdata, DType2* imdata_sum, int N)
 
 void performSensSum(CufftType* imdata_d,
   CufftType* imdata_sum_d,
-  gpuNUFFT::GpuNUFFTInfo* gi_host)
+  gpuNUFFT::GpuNUFFTInfo* gi_host,
+  const cudaStream_t& stream)
 {
   if (DEBUG)
-    printf("perform sens coil summation\n");
+    printf("perform sens coil summation (stream=%p) \n", stream);
 
   dim3 grid_dim(getOptimalGridDim(gi_host->im_width_dim,THREAD_BLOCK_SIZE));
   dim3 block_dim(THREAD_BLOCK_SIZE);
 
-  sensSumKernel<<<grid_dim,block_dim>>>(imdata_d,imdata_sum_d,gi_host->im_width_dim);
+  sensSumKernel<<<grid_dim,block_dim,0,stream>>>(imdata_d,imdata_sum_d,gi_host->im_width_dim);
 }
 
 __global__ void densityCompensationKernel(DType2* data, DType* density_comp, int N)
@@ -234,11 +239,14 @@ __global__ void densityCompensationKernel(DType2* data, DType* density_comp, int
   }
 }
 
-void performDensityCompensation(DType2* data, DType* density_comp, gpuNUFFT::GpuNUFFTInfo* gi_host)
+void performDensityCompensation(DType2* data, DType* density_comp, gpuNUFFT::GpuNUFFTInfo* gi_host, const cudaStream_t& stream)
 {
   dim3 block_dim(64, 1, 8);
   dim3 grid_dim(getOptimalGridDim(gi_host->data_count,THREAD_BLOCK_SIZE));
-  densityCompensationKernel<<<grid_dim,block_dim>>>(data,density_comp,gi_host->data_count);
+  densityCompensationKernel<<<grid_dim,block_dim,0,stream>>>(data,density_comp,gi_host->data_count);
+
+  if (DEBUG)
+    printf("Perform density compensation (stream=%p) \n", stream);
 }
 
 __global__ void deapodizationKernel(CufftType* gdata, DType beta, DType norm_val, int N)
@@ -464,7 +472,7 @@ __global__ void fftShiftKernel2D(CufftType* gdata, IndType3 offset, int N)
 //see BEATTY et al.: RAPID GRIDDING RECONSTRUCTION
 //eq. (4) and (5)
 void performDeapodization(CufftType* imdata_d,
-  gpuNUFFT::GpuNUFFTInfo* gi_host)
+  gpuNUFFT::GpuNUFFTInfo* gi_host, const cudaStream_t& stream)
 {
   DType beta = (DType)BETA(gi_host->kernel_width, gi_host->osr);
 
@@ -477,17 +485,17 @@ void performDeapodization(CufftType* imdata_d,
     norm_val = norm_val * norm_val * norm_val;
 
   if (DEBUG)
-    printf("running deapodization with norm_val %.2f\n",norm_val);
+    printf("running deapodization with norm_val %.2f (stream=%p) \n", norm_val, stream);
 
   dim3 grid_dim(getOptimalGridDim(gi_host->im_width_dim,THREAD_BLOCK_SIZE));
   dim3 block_dim(THREAD_BLOCK_SIZE);
   if (gi_host->is2Dprocessing)
   {
     dim3 block_dim(64, 1, 8);
-    deapodizationKernel2D<<<grid_dim,block_dim>>>(imdata_d,beta,norm_val,gi_host->im_width_dim);
+    deapodizationKernel2D<<<grid_dim,block_dim,0,stream>>>(imdata_d,beta,norm_val,gi_host->im_width_dim);
   }
   else
-    deapodizationKernel<<<grid_dim,block_dim>>>(imdata_d,beta,norm_val,gi_host->im_width_dim);
+    deapodizationKernel<<<grid_dim,block_dim,0,stream>>>(imdata_d,beta,norm_val,gi_host->im_width_dim);
 }
 
 __global__ void precomputedDeapodizationKernel(CufftType* imdata, DType* deapo, int N)
@@ -509,19 +517,21 @@ __global__ void precomputedDeapodizationKernel(CufftType* imdata, DType* deapo, 
 
 void performDeapodization(CufftType* imdata_d,
   DType* deapo_d,
-  gpuNUFFT::GpuNUFFTInfo* gi_host)
+  gpuNUFFT::GpuNUFFTInfo* gi_host,
+  const cudaStream_t& stream)
 {
   if (DEBUG)
-    printf("running deapodization with precomputed values\n");
+    printf("running deapodization with precomputed values (stream=%p) \n", stream);
 
   dim3 grid_dim(getOptimalGridDim(gi_host->im_width_dim,THREAD_BLOCK_SIZE));
   //dim3 block_dim(THREAD_BLOCK_SIZE);
   dim3 block_dim(64, 1, 8);
-  precomputedDeapodizationKernel<<<grid_dim,block_dim>>>(imdata_d,deapo_d,gi_host->im_width_dim);
+  precomputedDeapodizationKernel<<<grid_dim,block_dim,0,stream>>>(imdata_d,deapo_d,gi_host->im_width_dim);
 }
 
 void precomputeDeapodization(DType* deapo_d,
-  gpuNUFFT::GpuNUFFTInfo* gi_host)
+  gpuNUFFT::GpuNUFFTInfo* gi_host,
+  const cudaStream_t& stream)
 {
   DType beta = (DType)BETA(gi_host->kernel_width, gi_host->osr);
 
@@ -533,26 +543,27 @@ void precomputeDeapodization(DType* deapo_d,
     norm_val = norm_val * norm_val * norm_val;
 
   if (DEBUG)
-    printf("running deapodization precomputation with norm_val %.2f\n",norm_val);
+    printf("running deapodization precomputation with norm_val %.2f (stream=%p) \n", norm_val, stream);
 
   dim3 grid_dim(getOptimalGridDim(gi_host->im_width_dim,THREAD_BLOCK_SIZE));
   dim3 block_dim(THREAD_BLOCK_SIZE);
   if (gi_host->is2Dprocessing)
-    precomputeDeapodizationKernel2D<<<grid_dim,block_dim>>>(deapo_d,beta,norm_val,gi_host->im_width_dim);
+    precomputeDeapodizationKernel2D<<<grid_dim,block_dim,0,stream>>>(deapo_d,beta,norm_val,gi_host->im_width_dim);
   else
-    precomputeDeapodizationKernel<<<grid_dim,block_dim>>>(deapo_d,beta,norm_val,gi_host->im_width_dim);
+    precomputeDeapodizationKernel<<<grid_dim,block_dim,0,stream>>>(deapo_d,beta,norm_val,gi_host->im_width_dim);
 }
 
 void performCrop(CufftType* gdata_d,
   CufftType* imdata_d,
-  gpuNUFFT::GpuNUFFTInfo* gi_host)
+  gpuNUFFT::GpuNUFFTInfo* gi_host,
+  const cudaStream_t& stream)
 {
   IndType3 ind_off;
   ind_off.x = (IndType)(gi_host->imgDims.x * ((DType)gi_host->osr - 1.0f)/(DType)2);
   ind_off.y = (IndType)(gi_host->imgDims.y * ((DType)gi_host->osr - 1.0f)/(DType)2);
   ind_off.z = (IndType)(gi_host->imgDims.z * ((DType)gi_host->osr - 1.0f)/(DType)2);
   if (DEBUG)
-    printf("start cropping image with offset %u\n",ind_off.x);
+    printf("start cropping image with offset %u (stream=%p) \n", ind_off.x, stream);
 
   dim3 grid_dim(getOptimalGridDim(gi_host->im_width_dim,THREAD_BLOCK_SIZE));
   dim3 block_dim(THREAD_BLOCK_SIZE);
@@ -560,17 +571,18 @@ void performCrop(CufftType* gdata_d,
   if (gi_host->is2Dprocessing)
   {
     dim3 block_dim(64, 1, 8);
-    cropKernel2D<<<grid_dim,block_dim>>>(gdata_d,imdata_d,ind_off,gi_host->im_width_dim);
+    cropKernel2D<<<grid_dim,block_dim,0,stream>>>(gdata_d,imdata_d,ind_off,gi_host->im_width_dim);
   }
   else
-    cropKernel<<<grid_dim,block_dim>>>(gdata_d,imdata_d,ind_off,gi_host->im_width_dim);
+    cropKernel<<<grid_dim,block_dim,0,stream>>>(gdata_d,imdata_d,ind_off,gi_host->im_width_dim);
 }
 
 void performInPlaceFFTShift(CufftType* gdata_d,
   gpuNUFFT::FFTShiftDir shift_dir,
   gpuNUFFT::Dimensions gridDims,
   IndType3 offset,
-  gpuNUFFT::GpuNUFFTInfo* gi_host)
+  gpuNUFFT::GpuNUFFTInfo* gi_host,
+  const cudaStream_t& stream)
 {
   int t_width = (int)offset.x;
   if (shift_dir == gpuNUFFT::FORWARD)
@@ -591,17 +603,21 @@ void performInPlaceFFTShift(CufftType* gdata_d,
   if (gi_host->is2Dprocessing)
   {
     dim3 block_dim(64, 1, 8);
-    fftShiftKernel2D<<<grid_dim,block_dim>>>(gdata_d,offset,(int)gridDims.height * t_width);
+    fftShiftKernel2D<<<grid_dim,block_dim,0,stream>>>(gdata_d,offset,(int)gridDims.height * t_width);
   }
   else
-    fftShiftKernel<<<grid_dim,block_dim>>>(gdata_d,offset,(int)gridDims.count()/2);
+    fftShiftKernel<<<grid_dim,block_dim,0,stream>>>(gdata_d,offset,(int)gridDims.count()/2);
+
+  if (DEBUG)
+    printf("Perform in-place fftshift (stream=%p) \n", stream);
 }
 
 void performOutOfPlaceFFTShift(CufftType* gdata_d,
   gpuNUFFT::FFTShiftDir shift_dir,
   gpuNUFFT::Dimensions gridDims,
   IndType3 offset,
-  gpuNUFFT::GpuNUFFTInfo* gi_host)
+  gpuNUFFT::GpuNUFFTInfo* gi_host,
+  const cudaStream_t& stream)
 {
   dim3 grid_dim;
   if (gi_host->is2Dprocessing)
@@ -613,23 +629,27 @@ void performOutOfPlaceFFTShift(CufftType* gdata_d,
 
   CufftType *copy_gdata_d;
   allocateDeviceMem(&copy_gdata_d,gridDims.count());
-  cudaMemcpy(copy_gdata_d,gdata_d,gridDims.count()*sizeof(CufftType),cudaMemcpyDeviceToDevice);
+  cudaMemcpyAsync(copy_gdata_d,gdata_d,gridDims.count()*sizeof(CufftType),cudaMemcpyDeviceToDevice, stream);
 
   if (gi_host->is2Dprocessing)
   {
     dim3 block_dim(64, 1, 8);
-    fftShiftKernel2D<<<grid_dim,block_dim>>>(copy_gdata_d,gdata_d,offset,(int)gridDims.count());
+    fftShiftKernel2D<<<grid_dim,block_dim,0,stream>>>(copy_gdata_d,gdata_d,offset,(int)gridDims.count());
   }
   else
-    fftShiftKernel<<<grid_dim,block_dim>>>(copy_gdata_d,gdata_d,offset,(int)gridDims.count());
+    fftShiftKernel<<<grid_dim,block_dim,0,stream>>>(copy_gdata_d,gdata_d,offset,(int)gridDims.count());
 
   cudaFree(copy_gdata_d);
+
+  if (DEBUG)
+    printf("Perform out-of-place fftshift (stream=%p) \n", stream);
 }
 
 void performFFTShift(CufftType* gdata_d,
   gpuNUFFT::FFTShiftDir shift_dir,
   gpuNUFFT::Dimensions gridDims,
-  gpuNUFFT::GpuNUFFTInfo* gi_host)
+  gpuNUFFT::GpuNUFFTInfo* gi_host,
+  const cudaStream_t& stream)
 {
   IndType3 offset;
   if (shift_dir == gpuNUFFT::FORWARD)
@@ -648,9 +668,9 @@ void performFFTShift(CufftType* gdata_d,
   if (gridDims.width % 2 || 
       gridDims.height % 2 ||
       gridDims.depth % 2)
-    performOutOfPlaceFFTShift(gdata_d,shift_dir,gridDims,offset,gi_host);
+    performOutOfPlaceFFTShift(gdata_d,shift_dir,gridDims,offset,gi_host,stream);
   else
-    performInPlaceFFTShift(gdata_d,shift_dir,gridDims,offset,gi_host);
+    performInPlaceFFTShift(gdata_d,shift_dir,gridDims,offset,gi_host,stream);
 }
 
 __global__ void forwardDeapodizationKernel(DType2* imdata, DType beta, DType norm_val, int N)
@@ -735,7 +755,7 @@ __global__ void paddingKernel2D(DType2* imdata,CufftType* gdata, IndType3 offset
 //see BEATTY et al.: RAPID GRIDDING RECONSTRUCTION
 //eq. (4) and (5)
 void performForwardDeapodization(DType2* imdata_d,
-  gpuNUFFT::GpuNUFFTInfo* gi_host)
+  gpuNUFFT::GpuNUFFTInfo* gi_host, const cudaStream_t& stream)
 {
   DType beta = (DType)BETA(gi_host->kernel_width, gi_host->osr);
 
@@ -751,45 +771,50 @@ void performForwardDeapodization(DType2* imdata_d,
     norm_val = norm_val * norm_val * norm_val;
 
   if (gi_host->is2Dprocessing)
-    forwardDeapodizationKernel2D<<<grid_dim,block_dim>>>(imdata_d,beta,norm_val,gi_host->im_width_dim);
+    forwardDeapodizationKernel2D<<<grid_dim,block_dim,0,stream>>>(imdata_d,beta,norm_val,gi_host->im_width_dim);
   else
-    forwardDeapodizationKernel<<<grid_dim,block_dim>>>(imdata_d,beta,norm_val,gi_host->im_width_dim);
+    forwardDeapodizationKernel<<<grid_dim,block_dim,0,stream>>>(imdata_d,beta,norm_val,gi_host->im_width_dim);
+
+  if (DEBUG)
+    printf("running forward deapodization (stream=%p) \n", stream);
 }
 
 void performForwardDeapodization(DType2* imdata_d,
   DType* deapo_d,
-  gpuNUFFT::GpuNUFFTInfo* gi_host)
+  gpuNUFFT::GpuNUFFTInfo* gi_host,
+  const cudaStream_t& stream)
 {
   if (DEBUG)
-    printf("running forward deapodization with precomputed values\n");
+    printf("running forward deapodization with precomputed values (stream=%p) \n", stream);
 
   dim3 grid_dim(getOptimalGridDim(gi_host->im_width_dim,THREAD_BLOCK_SIZE));
   //dim3 block_dim(THREAD_BLOCK_SIZE);
   dim3 block_dim(64, 1, 8);
 
-  precomputedDeapodizationKernel<<<grid_dim,block_dim>>>((CufftType*)imdata_d,deapo_d,gi_host->im_width_dim);
+  precomputedDeapodizationKernel<<<grid_dim,block_dim,0,stream>>>((CufftType*)imdata_d,deapo_d,gi_host->im_width_dim);
 }
 
 void performPadding(DType2* imdata_d,
   CufftType* gdata_d,					
-  gpuNUFFT::GpuNUFFTInfo* gi_host)
+  gpuNUFFT::GpuNUFFTInfo* gi_host,
+  const cudaStream_t& stream)
 {
   IndType3 ind_off;
   ind_off.x = (IndType)(gi_host->imgDims.x * ((DType)gi_host->osr -1.0f)/(DType)2);
   ind_off.y = (IndType)(gi_host->imgDims.y * ((DType)gi_host->osr -1.0f)/(DType)2);
   ind_off.z = (IndType)(gi_host->imgDims.z * ((DType)gi_host->osr -1.0f)/(DType)2);
   if (DEBUG)
-    printf("start padding image with offset (%u,%u,%u)\n",ind_off.x,ind_off.y,ind_off.z);
+    printf("start padding image with offset (%u,%u,%u) (stream=%p)\n", ind_off.x, ind_off.y, ind_off.z, stream);
 
   dim3 grid_dim(getOptimalGridDim(gi_host->im_width_dim,THREAD_BLOCK_SIZE));
   dim3 block_dim(THREAD_BLOCK_SIZE);
   if (gi_host->is2Dprocessing)
   {
     dim3 block_dim(64, 1, 8);
-    paddingKernel2D<<<grid_dim,block_dim>>>(imdata_d,gdata_d,ind_off,gi_host->im_width_dim);
+    paddingKernel2D<<<grid_dim,block_dim,0,stream>>>(imdata_d,gdata_d,ind_off,gi_host->im_width_dim);
   }
   else
-    paddingKernel<<<grid_dim,block_dim>>>(imdata_d,gdata_d,ind_off,gi_host->im_width_dim);
+    paddingKernel<<<grid_dim,block_dim,0,stream>>>(imdata_d,gdata_d,ind_off,gi_host->im_width_dim);
 }
 
 #endif //STD_GPUNUFFT_KERNELS_CU

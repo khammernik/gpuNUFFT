@@ -22,8 +22,8 @@ class BalancedGpuNUFFTOperator : public GpuNUFFTOperator,
 {
  public:
   BalancedGpuNUFFTOperator(IndType kernelWidth, IndType sectorWidth, DType osf,
-    Dimensions imgDims, bool matlabSharedMem = false)
-    : GpuNUFFTOperator(kernelWidth, sectorWidth, osf, imgDims, true, BALANCED, matlabSharedMem)
+    Dimensions imgDims, bool matlabSharedMem = false, const cudaStream_t& stream = 0x0)
+    : GpuNUFFTOperator(kernelWidth, sectorWidth, osf, imgDims, true, BALANCED, matlabSharedMem, stream)
   {
   }
 

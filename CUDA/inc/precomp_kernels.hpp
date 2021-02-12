@@ -19,7 +19,8 @@
   */
 void assignSectorsGPU(gpuNUFFT::GpuNUFFTOperator *gpuNUFFTOp,
                       gpuNUFFT::Array<DType> &kSpaceTraj,
-                      IndType *assignedSectors);
+                      IndType *assignedSectors,
+                      const cudaStream_t& stream);
 
 /**
   * \brief Select arrays by sort order previously computed
@@ -30,7 +31,8 @@ void sortArrays(gpuNUFFT::GpuNUFFTOperator *gpuNUFFTOp,
                 std::vector<gpuNUFFT::IndPair> assignedSectorsAndIndicesSorted,
                 IndType *assignedSectors, IndType *dataIndices,
                 gpuNUFFT::Array<DType> &kSpaceTraj, DType *trajSorted,
-                DType *densCompData, DType *densData);
+                DType *densCompData, DType *densData,
+                const cudaStream_t& stream);
 
 /**
   * \brief Select input array in order defined by data_indices.
@@ -43,7 +45,8 @@ void sortArrays(gpuNUFFT::GpuNUFFTOperator *gpuNUFFTOp,
   * @param N count of elements
   */
 void selectOrderedGPU(DType2 *data_d, IndType *data_indices_d,
-                      DType2 *data_sorted_d, int N, int n_coils_cc = 1);
+                      DType2 *data_sorted_d, int N, int n_coils_cc = 1,
+                      const cudaStream_t& stream = 0x0);
 
 /**
   * \brief Write from sorted input array to unsorted data array.
@@ -56,6 +59,7 @@ void selectOrderedGPU(DType2 *data_d, IndType *data_indices_d,
   * @param N count of elements
   */
 void writeOrderedGPU(DType2 *data_sorted_d, IndType *data_indices_d,
-                     CufftType *data_d, int N, int n_coils_cc = 1);
+                     CufftType *data_d, int N, int n_coils_cc = 1,
+                     const cudaStream_t& stream = 0x0);
 
 #endif

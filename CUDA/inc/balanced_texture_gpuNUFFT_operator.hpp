@@ -28,9 +28,10 @@ class BalancedTextureGpuNUFFTOperator : public TextureGpuNUFFTOperator,
   BalancedTextureGpuNUFFTOperator(IndType kernelWidth, IndType sectorWidth,
                                   DType osf, Dimensions imgDims,
                                   InterpolationType interpolationType = TEXTURE2D_LOOKUP,
-                                  bool matlabSharedMem = false)
+                                  bool matlabSharedMem = false,
+                                  const cudaStream_t& stream = 0x0)
     : TextureGpuNUFFTOperator(kernelWidth, sectorWidth, osf, imgDims,
-                              interpolationType, matlabSharedMem)
+                              interpolationType, matlabSharedMem, stream)
   {
   }
 

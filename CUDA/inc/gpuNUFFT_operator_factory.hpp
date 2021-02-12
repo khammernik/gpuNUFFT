@@ -54,11 +54,13 @@ class GpuNUFFTOperatorFactory
     * @param useTextures Flag to indicate texture interpolation
     * @param useGpu Flag to indicate gpu usage for precomputation
     * @param balanceWorkload Flag to indicate load balancing
+    * @param stream cuda stream. Defaults to default stream (0x0)
     */
   GpuNUFFTOperatorFactory(const bool useTextures = true, const bool useGpu = true,
-                          bool balanceWorkload = true, bool matlabSharedMem = false)
+                          bool balanceWorkload = true, bool matlabSharedMem = false,
+                          const cudaStream_t& stream = 0x0)
     : useTextures(useTextures), useGpu(useGpu), balanceWorkload(balanceWorkload),
-    matlabSharedMem(matlabSharedMem)
+    matlabSharedMem(matlabSharedMem), stream(stream)
   {
   }
 
@@ -320,6 +322,9 @@ class GpuNUFFTOperatorFactory
 
   /** \brief Flag to indicate shared memory usage with Matlab */
   bool matlabSharedMem;
+
+  /** \brief Cuda stream. */
+  cudaStream_t stream;
 };
 }
 

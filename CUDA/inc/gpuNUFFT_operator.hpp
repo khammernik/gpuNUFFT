@@ -49,17 +49,18 @@ class GpuNUFFTOperator
     * @param loadKernel   Flag to determine whether the default interpolation
     *kernel has to be loaded or not, false for texture interpolation
     * @param operatorType Overwrite default operator type
+    * @param stream       cuda stream. Defaults to default stream (0x0)
     */
   GpuNUFFTOperator(IndType kernelWidth, IndType sectorWidth, DType osf,
                    Dimensions imgDims, bool loadKernel = true,
                    OperatorType operatorType = DEFAULT,
-                   bool matlabSharedMem = false)
+                   bool matlabSharedMem = false, const cudaStream_t& stream = 0x0)
     : operatorType(operatorType), osf(osf), kernelWidth(kernelWidth),
       sectorWidth(sectorWidth), imgDims(imgDims), gpuMemAllocated(false),
       debugTiming(DEBUG), sens_d(NULL), crds_d(NULL), density_comp_d(NULL),
       deapo_d(NULL), gdata_d(NULL), sector_centers_d(NULL), sectors_d(NULL),
       data_indices_d(NULL), data_sorted_d(NULL), allocatedCoils(0),
-      matlabSharedMem(matlabSharedMem)
+      matlabSharedMem(matlabSharedMem), stream(stream)
   {
     if (loadKernel)
       initKernel();
@@ -132,6 +133,15 @@ class GpuNUFFTOperator
     this->gridSectorDims = dims;
   }
 
+  void setCudaStream(const cudaStream_t& stream)
+  {
+    this->stream = stream;
+    // Try to set stream for fft_plan
+    cufftResult res = cufftSetStream(fft_plan, this->stream);
+    if (res != CUFFT_SUCCESS)
+      fprintf(stderr, "error on setting CUFFT stream. FFT plan might not exist yet. %d\n", res);
+  }
+
   // GETTER
   Array<DType> getKSpaceTraj()
   {
@@ -194,6 +204,11 @@ class GpuNUFFTOperator
   Array<IndType> getDataIndices()
   {
     return this->dataIndices;
+  }
+
+  const cudaStream_t& getCudaStream() const
+  {
+    return stream;
   }
 
   bool is2DProcessing()
@@ -449,6 +464,9 @@ class GpuNUFFTOperator
   /** \brief Flag which indicates if data pointers are allocated with Matlab 
   */
   bool matlabSharedMem;
+
+  /** \brief Cuda stream. */
+  cudaStream_t stream;
 
   /** \brief Return Grid Width (ImageWidth * osf) */
   IndType getGridWidth()
